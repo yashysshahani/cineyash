@@ -149,6 +149,7 @@ def fetch_omdb_metadata(title: str) -> dict | None:
         "plot_sentiment": analysis["plot_sentiment"],
         "plot_embedding": analysis["plot_embedding"].tolist(),
         "Year": year,
+        "Plot": plot,
     }
 
 
@@ -445,6 +446,9 @@ def main() -> None:
             if metadata:
                 st.session_state["omdb_metadata"] = metadata
                 st.session_state["_omdb_fetched_title"] = metadata.get("title", custom_title)
+                plot_text = metadata.get("Plot", "").strip()
+                if plot_text:
+                    st.session_state["custom_plot_text"] = plot_text
                 st.success("Metadata pulled from OMDb. Adjust sliders to taste.")
             else:
                 st.error("Could not find that title on OMDb. Try another keyword.")
