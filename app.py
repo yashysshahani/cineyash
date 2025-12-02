@@ -452,7 +452,7 @@ def main() -> None:
             if metadata:
                 st.session_state["omdb_metadata"] = metadata
                 st.session_state["_omdb_fetched_title"] = metadata.get("title", custom_title)
-                st.success("Metadata pulled from OMDb. Adjust sliders to taste.")
+                st.success("Metadata pulled from OMDb.")
             else:
                 st.error("Could not find that title on OMDb. Try another keyword.")
 
