@@ -468,14 +468,6 @@ def main() -> None:
             f"• {meta_year} • {meta_genre} • {meta_runtime or '?'} min • "
             f"RT {meta_rt if meta_rt is not None else '?'} / 100 • {meta_decade}"
         )
-        embedding_vector = metadata.get("plot_embedding")
-        if embedding_vector:
-            omdb_recs = recommend_from_embedding_vector(
-                embedding_vector, df, embeddings, top_k=4
-            )
-            if not omdb_recs.empty:
-                st.subheader("Similar movies from YashLog")
-                st.table(omdb_recs)
 
 
     metadata_runtime = metadata.get("Runtime")
@@ -542,9 +534,15 @@ def main() -> None:
         new_score = format_prediction(model.predict(new_features)[0])
         st.success(f"{form_title} would likely score around {new_score:.1f} / 10")
         st.write("You adjusted runtime, RT score, mood, and decade for this estimate.")
-
-    # st.caption("Streamlit app powered by the processed dataset and a cached random forest pipeline.")
-
+        
+        embedding_vector = metadata.get("plot_embedding")
+        if embedding_vector:
+            omdb_recs = recommend_from_embedding_vector(
+                embedding_vector, df, embeddings, top_k=4
+            )
+            if not omdb_recs.empty:
+                st.subheader("Similar movies from YashLog")
+                st.table(omdb_recs)
 
 if __name__ == "__main__":
     main()
