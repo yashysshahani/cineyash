@@ -402,7 +402,7 @@ def main() -> None:
 
     recs = get_recommendations(target_title, df, embeddings, top_k=6)
     if not recs.empty:
-        st.subheader("Similar titles (based on plot embeddings)")
+        st.subheader("Similar movies from YashLog")
         st.table(recs)
     else:
         st.info("No recommendations available for that selection.")
@@ -467,7 +467,7 @@ def main() -> None:
                 embedding_vector, df, embeddings, top_k=4
             )
             if not omdb_recs.empty:
-                st.subheader("Titles near that OMDb plot")
+                st.subheader("Similar movies from YashLog")
                 st.table(omdb_recs)
 
     if custom_plot.strip():
