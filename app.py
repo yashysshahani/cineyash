@@ -338,6 +338,7 @@ def main() -> None:
             df[
                 [
                     "Movie",
+                    "WatchDate"
                     "Release Year",
                     "Director",
                     "simple_genre",
@@ -345,7 +346,7 @@ def main() -> None:
                     "Rating",
                 ]
             ]
-            .sort_values(ascending=False)
+            .sort_values("WatchDate", ascending=False)
             .reset_index(drop=True)
             .head(20)
         )
