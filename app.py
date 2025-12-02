@@ -409,11 +409,65 @@ def main() -> None:
 
     st.header("Estimate your own pick")
     custom_title = st.text_input("Film title", "Untitled Watch", key="custom_movie_title")
-    metadata_from_session = st.session_state.get("omdb_metadata", {})
     st.session_state.setdefault("custom_plot_text", "")
-    plot_from_omdb = metadata_from_session.get("Plot", "").strip()
-    if plot_from_omdb and not st.session_state["custom_plot_text"].strip():
+    st.session_state.setdefault("_last_plot_populated_title", "")
+    fetched_title = st.session_state.get("_omdb_fetched_title", "")
+    if fetched_title and custom_title.strip().casefold() != fetched_title.strip().casefold():
+        st.session_state["omdb_metadata"] = {}
+        st.session_state["_omdb_fetched_title"] = ""
+        st.session_state["_last_plot_populated_title"] = ""
+
+    api_key = get_omdb_api_key()
+    if st.button(
+        "Auto-fill from OMDb",
+        use_container_width=True,
+        disabled=api_key is None or not custom_title.strip(),
+    ):
+        if not api_key:
+            st.warning(
+                "Add `OMDB_API_KEY` to Streamlit secrets (or your `.env` for local runs) to enable metadata fetches."
+            )
+        else:
+            metadata = fetch_omdb_metadata(custom_title)
+            if metadata:
+                st.session_state["omdb_metadata"] = metadata
+                st.session_state["_omdb_fetched_title"] = metadata.get("title", custom_title)
+                st.success("Metadata pulled from OMDb. Adjust sliders to taste.")
+            else:
+                st.error("Could not find that title on OMDb. Try another keyword.")
+
+    metadata = st.session_state.get("omdb_metadata", {})
+    if metadata:
+        meta_year = metadata.get("Year") or "-"
+        meta_genre = metadata.get("RawGenre", "")
+        meta_rt = metadata.get("rt_rating")
+        meta_runtime = metadata.get("Runtime")
+        meta_decade = metadata.get("Decade") or "Unknown"
+        st.markdown(
+            f"**OMDb snapshot:** {metadata.get('title')} "
+            f"• {meta_year} • {meta_genre} • {meta_runtime or '?'} min • "
+            f"RT {meta_rt if meta_rt is not None else '?'} / 100 • {meta_decade}"
+        )
+        embedding_vector = metadata.get("plot_embedding")
+        if embedding_vector:
+            omdb_recs = recommend_from_embedding_vector(
+                embedding_vector, df, embeddings, top_k=4
+            )
+            if not omdb_recs.empty:
+                st.subheader("Similar movies from YashLog")
+                st.table(omdb_recs)
+
+    plot_from_omdb = metadata.get("Plot", "").strip()
+    current_plot_title = st.session_state.get("_omdb_fetched_title", "")
+    last_populated = st.session_state.get("_last_plot_populated_title", "")
+    if (
+        plot_from_omdb
+        and current_plot_title
+        and current_plot_title != last_populated
+    ):
         st.session_state["custom_plot_text"] = plot_from_omdb
+        st.session_state["_last_plot_populated_title"] = current_plot_title
+
     custom_plot = st.text_area(
         "Plot / review snippet (OPTIONAL)",
         placeholder="Paste your plot idea, log entry, or short review to auto-suggest sentiment. Will generate from OMDb if empty",
