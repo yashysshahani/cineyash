@@ -292,9 +292,9 @@ def main() -> None:
 
     st.title("C I N E Y A S H")
     st.write(
-        "Interact with the personalized rating model by choosing a tracked film or "
+        "Interact with CINEYASH by choosing a tracked film or "
         "calibrating your own hypothetical watch. Predictions, actual ratings, and "
-        "similar titles are generated from the curated dataset."
+        "similar titles are generated from the YashLog."
     )
 
     if "omdb_metadata" not in st.session_state:
@@ -534,7 +534,7 @@ def main() -> None:
         new_score = format_prediction(model.predict(new_features)[0])
         st.success(f"{form_title} would likely score around {new_score:.1f} / 10")
         st.write("You adjusted runtime, RT score, mood, and decade for this estimate.")
-        
+
         embedding_vector = metadata.get("plot_embedding")
         if embedding_vector:
             omdb_recs = recommend_from_embedding_vector(
