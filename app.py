@@ -338,7 +338,7 @@ def main() -> None:
             df[
                 [
                     "Movie",
-                    "WatchDate"
+                    "WatchDate",
                     "Release Year",
                     "Director",
                     "simple_genre",
