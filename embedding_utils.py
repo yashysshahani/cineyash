@@ -122,5 +122,7 @@ def plot_embeddings_2d(df, x_col="x", y_col="y", color_col="Rating", title=None,
         template="plotly_white",
         legend_title=color_col
     )
+    fig.update_xaxes(showgrid=False)
+    fig.update_yaxes(showgrid=False)
 
     return fig

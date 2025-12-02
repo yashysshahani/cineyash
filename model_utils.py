@@ -16,6 +16,8 @@ from datetime import datetime
 import json
 
 
+# This was used more when I was testing different models in a notebook
+
 def model_assess(df, y_pred, y_test, task, assess="Rating", tolerance=1, plot=True):
     results = {}
 
