@@ -410,21 +410,8 @@ def main() -> None:
 
     st.header("Estimate your own pick")
     custom_title = st.text_input("Film title", "Untitled Watch", key="custom_movie_title")
-    custom_plot = st.text_area(
-        "Plot / review snippet (OPTIONAL)",
-        placeholder="Paste your plot idea, log entry, or short review to auto-suggest sentiment. Will generate from OMDb if empty",
-        height=120,
-        key="custom_plot_text",
-    )
-    text_sentiment_score = None
-    text_mood_override = None
-    if custom_plot.strip():
-        vector = goemotion_vector(custom_plot)
-        text_sentiment_score = float(polarity_from_vector(vector))
-        text_mood_override = "positive" if text_sentiment_score >= 0 else "negative"
-        st.caption(
-            f"Text-driven sentiment: {text_sentiment_score:+.2f} → mood set to {text_mood_override.title()}."
-        )
+
+    st.session_state.setdefault("custom_plot_text", "")
 
     fetched_title = st.session_state.get("_omdb_fetched_title", "")
     if fetched_title and custom_title.strip().casefold() != fetched_title.strip().casefold():
@@ -473,6 +460,22 @@ def main() -> None:
             if not omdb_recs.empty:
                 st.subheader("Similar movies from YashLog")
                 st.table(omdb_recs)
+
+    custom_plot = st.text_area(
+        "Plot / review snippet (OPTIONAL)",
+        placeholder="Paste your plot idea, log entry, or short review to auto-suggest sentiment. Will generate from OMDb if empty",
+        height=120,
+        key="custom_plot_text",
+    )
+    text_sentiment_score = None
+    text_mood_override = None
+    if custom_plot.strip():
+        vector = goemotion_vector(custom_plot)
+        text_sentiment_score = float(polarity_from_vector(vector))
+        text_mood_override = "positive" if text_sentiment_score >= 0 else "negative"
+        st.caption(
+            f"Text-driven sentiment: {text_sentiment_score:+.2f} → mood set to {text_mood_override.title()}."
+        )
 
     if custom_plot.strip():
         text_recs = recommend_from_plot_text(custom_plot, df, embeddings, top_k=4)
