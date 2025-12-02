@@ -345,6 +345,7 @@ def main() -> None:
                     "Rating",
                 ]
             ]
+            .sort_values(ascending=False)
             .reset_index(drop=True)
             .head(20)
         )
