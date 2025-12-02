@@ -409,6 +409,11 @@ def main() -> None:
 
     st.header("Estimate your own pick")
     custom_title = st.text_input("Film title", "Untitled Watch", key="custom_movie_title")
+    metadata_from_session = st.session_state.get("omdb_metadata", {})
+    st.session_state.setdefault("custom_plot_text", "")
+    plot_from_omdb = metadata_from_session.get("Plot", "").strip()
+    if plot_from_omdb and not st.session_state["custom_plot_text"].strip():
+        st.session_state["custom_plot_text"] = plot_from_omdb
     custom_plot = st.text_area(
         "Plot / review snippet (OPTIONAL)",
         placeholder="Paste your plot idea, log entry, or short review to auto-suggest sentiment. Will generate from OMDb if empty",
