@@ -396,8 +396,7 @@ def main() -> None:
                 x_col="x",
                 y_col="y",
                 color_col=color_by,
-                hover_cols=["Rating", "Movie"],
-                template="streamlit",
+                hover_cols=["Rating", "Movie"]
             )
             fig.update_layout(
                 plot_bgcolor="rgba(0,0,0,0)",
