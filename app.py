@@ -417,7 +417,8 @@ def main() -> None:
             st.dataframe(
                 assessment_df[["Movie", "Rating", "preds", "rt_rating"]]
                 .assign(preds=lambda df: df["preds"].round(2))
-                .head(12)
+                .head(12),
+                hide_index=True
             )
 
     prediction_col, custom_col = st.columns(2, gap="large")
