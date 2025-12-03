@@ -9,7 +9,7 @@ CINEYASH is built using Yash's personal data, OMDb metadata, transformer embeddi
 - `app.py` is where all the Streamlit magic happens. It loads `data/processed_movies.parquet`, models the data with Random Forest, pulls fresh OMDb data for movies not in the dataset, and creates recommendations using cosine similarity on embeddings.
 - `preprocessing.py` contains helpers to simplify genres, decades, and one-hots variables.
 - `sentiment_utils.py` wraps the GoEmotions pipeline (`SamLowe/roberta-base-go_emotions`), which allows for sentiment analysis.
-- `embedding_utils.py` holds SentenceTransformer helpers, people/plot encoding, and quick UMAP/TSNE visualizers.
+- `embedding_utils.py` holds SentenceTransformer helpers, people/plot encoding, and quick UMAP/TSNE visualizers while reading `SHEET_NAME`, `FILE_PATH`, and `OMDB_API_KEY` from the environment or `.streamlit/secrets.toml` so there are no hard-coded credentials.
 - `model_utils.py` contains `model_assess`, `accuracy_within_tol`, and a few metric helpers for training regressors, ordinal models, or confusion matrices.
 - `data/` contains `processed_movies.parquet`. `app.py` expects the parquet version.
 - `.streamlit/secrets.toml` contains secrets

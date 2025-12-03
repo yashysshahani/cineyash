@@ -1,15 +1,70 @@
-SHEET_NAME = "Master List"
-FILE_PATH = "Film Reviews.xlsx"
-API_KEY = "8a6136c2"
-random_state = 0
-test_size = 0.2
-OMDB_DATA = 'full_omdb_linked_dataset.csv'
-
+import os
+import re
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import plotly.express as px
-import re
+
+random_state = 0
+test_size = 0.2
+OMDB_DATA = "full_omdb_linked_dataset.csv"
+
+_SECRETS_PATH = Path(__file__).resolve().parent / ".streamlit" / "secrets.toml"
+_SECRETS_CACHE: dict[str, str] | None = None
+
+
+def _load_streamlit_secrets() -> dict[str, str]:
+    global _SECRETS_CACHE
+    if _SECRETS_CACHE is not None:
+        return _SECRETS_CACHE
+
+    secrets: dict[str, str] = {}
+    if not _SECRETS_PATH.exists():
+        _SECRETS_CACHE = secrets
+        return secrets
+
+    loader = None
+    try:
+        import tomllib as toml_loader  # type: ignore[attr-defined]
+
+        loader = toml_loader.load
+    except ModuleNotFoundError:
+        try:
+            import tomli as toml_loader  # type: ignore[import]
+
+            loader = toml_loader.load
+        except ModuleNotFoundError:
+            loader = None
+
+    if loader:
+        with _SECRETS_PATH.open("rb") as fp:
+            secrets = loader(fp)  # type: ignore[assignment]
+
+    _SECRETS_CACHE = secrets or {}
+    return _SECRETS_CACHE
+
+
+def _env_or_secret(key: str, fallback: str | None = None) -> str | None:
+    value = os.environ.get(key)
+    if value:
+        return value
+    lower = key.lower()
+    if lower != key:
+        value = os.environ.get(lower)
+        if value:
+            return value
+    secrets = _load_streamlit_secrets()
+    if key in secrets:
+        return secrets[key]
+    if lower in secrets:
+        return secrets[lower]
+    return fallback
+
+
+SHEET_NAME = _env_or_secret("SHEET_NAME") or "Master List"
+FILE_PATH = _env_or_secret("FILE_PATH") or "Film Reviews.xlsx"
+API_KEY = _env_or_secret("OMDB_API_KEY") or _env_or_secret("API_KEY")
 
 def load_embedding_model(model_name="all-MiniLM-L6-v2"):
     from sentence_transformers import SentenceTransformer
