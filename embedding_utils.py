@@ -151,7 +151,7 @@ def attach_2d_coords(df, X_2d, x_col="x", y_col="y"):
     df[y_col] = X_2d[:, 1]
     return df
 
-def plot_embeddings_2d(df, x_col="x", y_col="y", color_col="Rating", title=None, hover_cols=None):
+def plot_embeddings_2d(df, x_col="x", y_col="y", color_col="Rating", title=None, hover_cols=None, template="streamlit"):
     if title is None:
         title = f"2D Embedding Map by {color_col}"
 
@@ -174,7 +174,7 @@ def plot_embeddings_2d(df, x_col="x", y_col="y", color_col="Rating", title=None,
 
     fig.update_traces(marker=dict(size=6))
     fig.update_layout(
-        template="plotly_white",
+        template=template,
         legend_title=color_col
     )
     fig.update_xaxes(showgrid=False)
