@@ -3,6 +3,7 @@ import re
 
 import numpy as np
 import pandas as pd
+import plotly.express as px
 import requests
 import streamlit as st
 from embedding_utils import encode_plot, load_embedding_model, plot_embeddings_2d
@@ -16,6 +17,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
+import random
 
 try:
     from sentiment_utils import goemotion_vector, polarity_from_vector
@@ -293,9 +295,7 @@ def main() -> None:
 
     st.title("C I N E Y A S H")
     st.write(
-        "Interact with CINEYASH by choosing a tracked film or "
-        "calibrating your own watch. Predictions, actual ratings, and "
-        "similar titles are generated from the YashLog."
+        "What Yash is watching, what he recommends, and how he would rate your favorite movie!"
     )
 
     if "omdb_metadata" not in st.session_state:
@@ -322,22 +322,44 @@ def main() -> None:
     model_results, assessment_df = model_assess(df, y_pred, y_true, task="regression", plot=False)
     within_tol = accuracy_within_tol(y_true, np.clip(y_pred, 1.0, 10.0))
 
-    avg_rating = df["Rating"].mean()
-    most_common_decade = (
-        df["Decade"].value_counts().idxmax()
-        if not df["Decade"].empty
-        else "Unknown"
-    )
+    with st.sidebar:
 
-    stat_cols = st.columns(3)
-    stat_cols[0].metric("Tracked films", len(df))
-    stat_cols[1].metric("Average rating", f"{avg_rating:.2f} / 10")
-    stat_cols[2].metric("Most frequent decade", most_common_decade)
-    current_view = st.sidebar.radio("Navigate", ["Prediction", "Dataset"])
+        avg_rating = df["Rating"].mean()
+        most_common_decade = (
+            df["Decade"].value_counts().idxmax()
+            if not df["Decade"].empty
+            else "Unknown"
+        )
+        st.metric("Tracked films", len(df))
+        st.metric("Average rating", f"{avg_rating:.2f} / 10")
+        st.metric("Most frequent decade", most_common_decade)
+        avg_runtime = df["Runtime"].mean()
+        watch_span = df["WatchDate"].max()
+        span_label = (
+            f"{watch_span.year}"
+            if not pd.isna(watch_span)
+            else "—"
+        )
+        st.metric("Avg runtime", f"{avg_runtime:.0f} min")
+        st.metric("Latest watch year", span_label)
+        st.metric("Decade buckets", df["Decade"].nunique())
 
-    if current_view == "Prediction":
-        with st.expander("Dataset snapshot"):
-            st.dataframe(
+    tab1, tab2, tab3 = st.tabs(["Recent watches", "Embedding map", "Model Diagnostics"])
+
+    with tab1:
+        with st.container():
+            st.markdown("### Recent watches")
+            stats_cols = st.columns([1, 1, 1])
+            latest_watch = df["WatchDate"].max()
+            stats_cols[0].metric(
+                "Most recent watch",
+                latest_watch.strftime("%Y-%m-%d")
+                if hasattr(latest_watch, "strftime")
+                else latest_watch,
+            )
+            stats_cols[1].metric("Unique directors", df["Director"].nunique())
+            stats_cols[2].metric("Genres tracked", df["simple_genre"].nunique())
+            table_df = (
                 df[
                     [
                         "Movie",
@@ -349,29 +371,45 @@ def main() -> None:
                         "Rating",
                     ]
                 ]
-                .sort_values("WatchDate", ascending=False)
-                .reset_index(drop=True)
-                .head(20)
+                .copy()
             )
-
-        color_by = st.selectbox(
-            "Color embedding map by",
-            ["Rating", "simple_genre", "Decade", "kmeans_cluster"],
-            index=0,
-            key="embedding_color_choice",
-        )
-
-        with st.expander("Embedding map"):
+            if pd.api.types.is_datetime64_any_dtype(table_df["WatchDate"]):
+                table_df["WatchDate"] = table_df["WatchDate"].dt.date
+            st.dataframe(
+                table_df.sort_values("WatchDate", ascending=False)
+                .reset_index(drop=True)
+                .head(20),
+                hide_index=True,
+            )
+    with tab2:
+        with st.container():
+            st.markdown("### Embedding map")
+            st.caption("Use the dropdown to color the map by rating, genre, decade, or k-means cluster.")
+            color_by = st.selectbox(
+                "Color embedding map by",
+                ["Rating", "simple_genre", "Decade", "kmeans_cluster"],
+                index=0,
+                key="dataset_embedding_color_choice",
+            )
             fig = plot_embeddings_2d(
                 df,
                 x_col="x",
                 y_col="y",
                 color_col=color_by,
                 hover_cols=["Rating", "Movie"],
+                template="streamlit",
             )
-            st.plotly_chart(fig, use_container_width=True)
-
-        with st.expander("Model diagnostics"):
+            fig.update_layout(
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(showgrid=False, zeroline=False),
+                yaxis=dict(showgrid=False, zeroline=False),
+            )
+            st.plotly_chart(fig, use_container_width=True, theme="streamlit")
+    
+    with tab3:
+        with st.container():
+            st.markdown("### Model diagnostics")
             diag_cols = st.columns(4)
             diag_cols[0].metric("R²", f"{_unwrap_metric(model_results.get('R2', 0.0)):.2f}")
             diag_cols[1].metric("MAE", f"{_unwrap_metric(model_results.get('MAE', 0.0)):.2f}")
@@ -383,200 +421,199 @@ def main() -> None:
                 .head(12)
             )
 
-        prediction_col, custom_col = st.columns(2, gap="large")
+    prediction_col, custom_col = st.columns(2, gap="large")
 
-        with prediction_col:
-            st.header("Predict a tracked film")
-            movie_options = sorted(df["Movie"].dropna().unique())
-            target_title = st.selectbox("Pick a movie from the log", movie_options)
-            target_row = df[df["Movie"] == target_title].iloc[0]
+    with prediction_col:
+        st.header("Predict a tracked film")
+        movie_options = sorted(df["Movie"].dropna().unique())
 
-            sample_features = target_row[NUMERIC_FEATURES + CATEGORICAL_FEATURES].to_frame().T
-            predicted_rating = format_prediction(model.predict(sample_features)[0])
-            actual_rating = float(target_row["Rating"])
-
-            cols = st.columns(3)
-            cols[0].metric("Predicted rating", f"{predicted_rating:.1f} / 10")
-            cols[1].metric("Actual rating", f"{actual_rating:.1f} / 10")
-            cols[2].metric(
-                "Prediction gap",
-                f"{(predicted_rating - actual_rating):+.1f}",
+        if "selected_movie" not in st.session_state:
+            st.session_state["selected_movie"] = movie_options[0] if movie_options else ""
+        select_col, button_col = st.columns([3, 1])
+        with select_col:
+            target_title = st.selectbox(
+                "Pick a movie from the log",
+                movie_options,
+                key="selected_movie",
             )
+        with button_col:
+            st.markdown("<div style='height:1.75rem'></div>", unsafe_allow_html=True)
+            def pick_random_movie(options=movie_options):
+                if options:
+                    st.session_state["selected_movie"] = random.choice(options)
 
-            st.write("**Why this film?**")
-            st.write(
-                f"{target_row['Release Year']} • {target_row['simple_genre']} • "
-                f"RT score {target_row['rt_rating']}"
-            )
+            button_col.button("Pick for me", use_container_width=True, on_click=pick_random_movie)
 
-            recs = get_recommendations(target_title, df, embeddings, top_k=6)
-            if not recs.empty:
-                st.subheader("Similar movies from YashLog")
-                st.table(recs)
-            else:
-                st.info("No recommendations available for that selection.")
+        target_title = st.session_state.get("selected_movie", target_title)
 
-        with custom_col:
-            st.header("Estimate your own pick")
-            custom_title = st.text_input("Film title", "Untitled Watch", key="custom_movie_title")
-            st.session_state.setdefault("custom_plot_text", "")
-            st.session_state.setdefault("_last_plot_populated_title", "")
-            fetched_title = st.session_state.get("_omdb_fetched_title", "")
-            if fetched_title and custom_title.strip().casefold() != fetched_title.strip().casefold():
-                st.session_state["omdb_metadata"] = {}
-                st.session_state["_omdb_fetched_title"] = ""
-                st.session_state["_last_plot_populated_title"] = ""
+        target_row = df[df["Movie"] == target_title].iloc[0]
 
-            api_key = get_omdb_api_key()
-            if st.button(
-                "Auto-fill from OMDb",
-                use_container_width=True,
-                disabled=api_key is None or not custom_title.strip(),
-            ):
-                if not api_key:
-                    st.warning(
-                        "Add `OMDB_API_KEY` to Streamlit secrets (or your `.env` for local runs) to enable metadata fetches."
-                    )
-                else:
-                    metadata = fetch_omdb_metadata(custom_title)
-                    if metadata:
-                        st.session_state["omdb_metadata"] = metadata
-                        st.session_state["_omdb_fetched_title"] = metadata.get("title", custom_title)
-                        st.success("Metadata pulled from OMDb.")
-                    else:
-                        st.error("Could not find that title on OMDb. Try another keyword.")
+        sample_features = target_row[NUMERIC_FEATURES + CATEGORICAL_FEATURES].to_frame().T
+        predicted_rating = format_prediction(model.predict(sample_features)[0])
+        actual_rating = float(target_row["Rating"])
 
-            metadata = st.session_state.get("omdb_metadata", {})
-            if metadata:
-                meta_year = metadata.get("Year") or "-"
-                meta_genre = metadata.get("RawGenre", "")
-                meta_rt = metadata.get("rt_rating")
-                meta_runtime = metadata.get("Runtime")
-                meta_decade = metadata.get("Decade") or "Unknown"
-                st.markdown(
-                    f"**OMDb snapshot:** {metadata.get('title')} "
-                    f"• {meta_year} • {meta_genre} • {meta_runtime or '?'} min • "
-                    f"RT {meta_rt if meta_rt is not None else '?'} / 100 • {meta_decade}"
-                )
-                embedding_vector = metadata.get("plot_embedding")
-                if embedding_vector:
-                    omdb_recs = recommend_from_embedding_vector(
-                        embedding_vector, df, embeddings, top_k=4
-                    )
-
-            plot_from_omdb = metadata.get("Plot", "").strip()
-            current_plot_title = st.session_state.get("_omdb_fetched_title", "")
-            last_populated = st.session_state.get("_last_plot_populated_title", "")
-            if (
-                plot_from_omdb
-                and current_plot_title
-                and current_plot_title != last_populated
-            ):
-                st.session_state["custom_plot_text"] = plot_from_omdb
-                st.session_state["_last_plot_populated_title"] = current_plot_title
-
-            metadata_runtime = metadata.get("Runtime")
-            runtime_default = (
-                max(60, min(240, metadata_runtime))
-                if isinstance(metadata_runtime, int)
-                else 110
-            )
-            metadata_rt = metadata.get("rt_rating")
-            rt_default = metadata_rt if isinstance(metadata_rt, int) else 70
-            plot_sentiment_default = float(metadata.get("plot_sentiment", 0.0))
-            plot_mood_default = metadata.get("plot_mood") or "positive"
-
-            with st.form("new_film_form"):
-                form_title = custom_title
-                runtime = st.slider("Runtime (min)", 60, 240, runtime_default)
-                rt_rating = st.slider("Rotten Tomatoes score", 0, 100, rt_default)
-                plot_sentiment = st.slider(
-                    "Plot sentiment (approximate)",
-                    -1.0,
-                    1.0,
-                    plot_sentiment_default,
-                    step=0.01,
-                )
-
-                genre_options = sorted(df["simple_genre"].dropna().unique())
-                default_genre = metadata.get("simple_genre")
-                if default_genre not in genre_options:
-                    default_genre = genre_options[0]
-                simple_genre = st.selectbox("Genre category", genre_options, index=genre_options.index(default_genre))
-
-                mood_options = ["positive", "negative"]
-                default_mood = plot_mood_default
-                if default_mood not in mood_options:
-                    default_mood = "positive"
-                plot_mood = st.radio("Plot mood", options=mood_options, horizontal=True, index=mood_options.index(default_mood))
-
-                decade_options = ["Unknown"] + sorted(
-                    [d for d in df["Decade"].unique() if d and d != "Unknown"],
-                    key=lambda decade: int(decade.rstrip("s")) if decade.endswith("s") else 9999,
-                )
-                decade_default = metadata.get("Decade") or "Unknown"
-                if decade_default not in decade_options:
-                    decade_default = "Unknown"
-                decade = st.selectbox("Decade", decade_options, index=decade_options.index(decade_default))
-
-                st.text_area(
-                    "Plot / review snippet (OPTIONAL)",
-                    placeholder="Paste your plot idea, log entry, or short review to auto-suggest sentiment. Will generate from OMDb if empty",
-                    height=120,
-                    key="custom_plot_text",
-                )
-
-                submitted = st.form_submit_button("Predict rating")
-
-            custom_plot = st.session_state.get("custom_plot_text", "")
-            if custom_plot.strip():
-                vector = goemotion_vector(custom_plot)
-                text_sentiment_score = float(polarity_from_vector(vector))
-                text_mood_override = "positive" if text_sentiment_score >= 0 else "negative"
-                st.caption(
-                    f"Text-driven sentiment: {text_sentiment_score:+.2f} → mood set to {text_mood_override.title()}."
-                )
-                text_recs = recommend_from_plot_text(custom_plot, df, embeddings, top_k=4)
-
-            if submitted:
-
-                new_features = pd.DataFrame(
-                    {
-                        "Runtime": [runtime],
-                        "rt_rating": [rt_rating],
-                        "plot_sentiment": [plot_sentiment],
-                        "simple_genre": [simple_genre],
-                        "plot_mood": [plot_mood],
-                        "Decade": [decade],
-                    }
-                )
-
-                new_score = format_prediction(model.predict(new_features)[0])
-                st.success(f"{form_title} would likely score around {new_score:.1f} / 10")
-                st.subheader("Similar movies from YashLog")
-                st.table(text_recs)
-                st.write("You adjusted runtime, RT score, mood, and decade for this estimate.")
-    else:
-        st.header("Dataset overview")
-        st.write(
-            "This view summarizes the curated dataset used by the prediction models. "
-            "It highlights distributions and sample records so you can understand what data drives the Streamlit dashboards."
+        cols = st.columns(3)
+        cols[0].metric("Predicted rating", f"{predicted_rating:.1f} / 10")
+        cols[1].metric("Actual rating", f"{actual_rating:.1f} / 10")
+        cols[2].metric(
+            "Prediction gap",
+            f"{(predicted_rating - actual_rating):+.1f}",
         )
 
-        dataset_cols = st.columns(3)
-        dataset_cols[0].metric("Total movies", len(df))
-        dataset_cols[1].metric("Decade span", f"{df['Decade'].nunique()} buckets")
-        dataset_cols[2].metric("Mean runtime", f"{df['Runtime'].mean():.0f} min")
+        st.write("**Why this film?**")
+        st.write(
+            f"{target_row['Release Year']} • {target_row['simple_genre']} • "
+            f"RT score {target_row['rt_rating']}"
+        )
 
-        st.subheader("Rating distribution")
-        rating_counts = df["Rating"].value_counts().sort_index()
-        st.bar_chart(rating_counts)
+        recs = get_recommendations(target_title, df, embeddings, top_k=6)
+        if not recs.empty:
+            st.subheader("Similar movies from YashLog")
+            st.table(recs)
+        else:
+            st.info("No recommendations available for that selection.")
 
-        st.subheader("Genre mix")
-        genre_counts = df["simple_genre"].value_counts()
-        st.bar_chart(genre_counts)
+    
 
-        with st.expander("Sample rows"):
-            st.dataframe(df.head(20))
+    with custom_col:
+        st.header("Estimate your own pick")
+        custom_title = st.text_input("Film title", "Untitled Watch", key="custom_movie_title")
+        st.session_state.setdefault("custom_plot_text", "")
+        st.session_state.setdefault("_last_plot_populated_title", "")
+        fetched_title = st.session_state.get("_omdb_fetched_title", "")
+        if fetched_title and custom_title.strip().casefold() != fetched_title.strip().casefold():
+            st.session_state["omdb_metadata"] = {}
+            st.session_state["_omdb_fetched_title"] = ""
+            st.session_state["_last_plot_populated_title"] = ""
+
+        api_key = get_omdb_api_key()
+        if st.button(
+            "Auto-fill from OMDb",
+            use_container_width=True,
+            disabled=api_key is None or not custom_title.strip(),
+        ):
+            if not api_key:
+                st.warning(
+                    "Add `OMDB_API_KEY` to Streamlit secrets (or your `.env` for local runs) to enable metadata fetches."
+                )
+            else:
+                metadata = fetch_omdb_metadata(custom_title)
+                if metadata:
+                    st.session_state["omdb_metadata"] = metadata
+                    st.session_state["_omdb_fetched_title"] = metadata.get("title", custom_title)
+                    st.success("Metadata pulled from OMDb.")
+                else:
+                    st.error("Could not find that title on OMDb. Try another keyword.")
+
+        metadata = st.session_state.get("omdb_metadata", {})
+        if metadata:
+            meta_year = metadata.get("Year") or "-"
+            meta_genre = metadata.get("RawGenre", "")
+            meta_rt = metadata.get("rt_rating")
+            meta_runtime = metadata.get("Runtime")
+            meta_decade = metadata.get("Decade") or "Unknown"
+            st.markdown(
+                f"**OMDb snapshot:** {metadata.get('title')} "
+                f"• {meta_year} • {meta_genre} • {meta_runtime or '?'} min • "
+                f"RT {meta_rt if meta_rt is not None else '?'} / 100 • {meta_decade}"
+            )
+            embedding_vector = metadata.get("plot_embedding")
+            if embedding_vector:
+                omdb_recs = recommend_from_embedding_vector(
+                    embedding_vector, df, embeddings, top_k=4
+                )
+
+        plot_from_omdb = metadata.get("Plot", "").strip()
+        current_plot_title = st.session_state.get("_omdb_fetched_title", "")
+        last_populated = st.session_state.get("_last_plot_populated_title", "")
+        if (
+            plot_from_omdb
+            and current_plot_title
+            and current_plot_title != last_populated
+        ):
+            st.session_state["custom_plot_text"] = plot_from_omdb
+            st.session_state["_last_plot_populated_title"] = current_plot_title
+
+        metadata_runtime = metadata.get("Runtime")
+        runtime_default = (
+            max(60, min(240, metadata_runtime))
+            if isinstance(metadata_runtime, int)
+            else 110
+        )
+        metadata_rt = metadata.get("rt_rating")
+        rt_default = metadata_rt if isinstance(metadata_rt, int) else 70
+        plot_sentiment_default = float(metadata.get("plot_sentiment", 0.0))
+        plot_mood_default = metadata.get("plot_mood") or "positive"
+
+        with st.form("new_film_form"):
+            form_title = custom_title
+            runtime = st.slider("Runtime (min)", 60, 240, runtime_default)
+            rt_rating = st.slider("Rotten Tomatoes score", 0, 100, rt_default)
+            plot_sentiment = st.slider(
+                "Plot sentiment (approximate)",
+                -1.0,
+                1.0,
+                plot_sentiment_default,
+                step=0.01,
+            )
+
+            genre_options = sorted(df["simple_genre"].dropna().unique())
+            default_genre = metadata.get("simple_genre")
+            if default_genre not in genre_options:
+                default_genre = genre_options[0]
+            simple_genre = st.selectbox("Genre category", genre_options, index=genre_options.index(default_genre))
+
+            mood_options = ["positive", "negative"]
+            default_mood = plot_mood_default
+            if default_mood not in mood_options:
+                default_mood = "positive"
+            plot_mood = st.radio("Plot mood", options=mood_options, horizontal=True, index=mood_options.index(default_mood))
+
+            decade_options = ["Unknown"] + sorted(
+                [d for d in df["Decade"].unique() if d and d != "Unknown"],
+                key=lambda decade: int(decade.rstrip("s")) if decade.endswith("s") else 9999,
+            )
+            decade_default = metadata.get("Decade") or "Unknown"
+            if decade_default not in decade_options:
+                decade_default = "Unknown"
+            decade = st.selectbox("Decade", decade_options, index=decade_options.index(decade_default))
+
+            st.text_area(
+                "Plot / review snippet (OPTIONAL)",
+                placeholder="Paste your plot idea, log entry, or short review to auto-suggest sentiment. Will generate from OMDb if empty",
+                height=120,
+                key="custom_plot_text",
+            )
+
+            submitted = st.form_submit_button("Predict rating")
+
+        custom_plot = st.session_state.get("custom_plot_text", "")
+        if custom_plot.strip():
+            vector = goemotion_vector(custom_plot)
+            text_sentiment_score = float(polarity_from_vector(vector))
+            text_mood_override = "positive" if text_sentiment_score >= 0 else "negative"
+            st.caption(
+                f"Text-driven sentiment: {text_sentiment_score:+.2f} → mood set to {text_mood_override.title()}."
+            )
+            text_recs = recommend_from_plot_text(custom_plot, df, embeddings, top_k=4)
+
+        if submitted:
+
+            new_features = pd.DataFrame(
+                {
+                    "Runtime": [runtime],
+                    "rt_rating": [rt_rating],
+                    "plot_sentiment": [plot_sentiment],
+                    "simple_genre": [simple_genre],
+                    "plot_mood": [plot_mood],
+                    "Decade": [decade],
+                }
+            )
+
+            new_score = format_prediction(model.predict(new_features)[0])
+            st.success(f"{form_title} would likely score around {new_score:.1f} / 10")
+            st.subheader("Similar movies from YashLog")
+            st.table(text_recs)
+            st.write("You adjusted runtime, RT score, mood, and decade for this estimate.")
 if __name__ == "__main__":
     main()
