@@ -293,7 +293,7 @@ def main() -> None:
     st.title("C I N E Y A S H")
     st.write(
         "Interact with CINEYASH by choosing a tracked film or "
-        "calibrating your own hypothetical watch. Predictions, actual ratings, and "
+        "calibrating your own watch. Predictions, actual ratings, and "
         "similar titles are generated from the YashLog."
     )
 
