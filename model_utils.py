@@ -28,7 +28,7 @@ def model_assess(df, y_pred, y_test, task, assess="Rating", tolerance=1, plot=Tr
     if task == "regression":
         results["R2"] = r2_score(y_test, y_pred)
         results["MAE"] = mean_absolute_error(y_test, y_pred),
-        results["RMSE"] = mean_squared_error(y_test, y_pred, squared=False)
+        results["RMSE"] = mean_squared_error(y_test, y_pred)
     
     elif task == "classification":
         results["Accuracy"] = accuracy_score(y_test, y_pred)
