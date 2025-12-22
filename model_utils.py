@@ -4,7 +4,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.metrics import (
-    r2_score, mean_absolute_error, root_mean_squared_error,
+    r2_score, mean_absolute_error, mean_squared_error,
     accuracy_score, f1_score, confusion_matrix, ConfusionMatrixDisplay,
     make_scorer)
 from sklearn.linear_model import Ridge
@@ -28,7 +28,7 @@ def model_assess(df, y_pred, y_test, task, assess="Rating", tolerance=1, plot=Tr
     if task == "regression":
         results["R2"] = r2_score(y_test, y_pred)
         results["MAE"] = mean_absolute_error(y_test, y_pred),
-        results["RMSE"] = root_mean_squared_error(y_test, y_pred)
+        results["RMSE"] = mean_squared_error(y_test, y_pred, squared=False)
     
     elif task == "classification":
         results["Accuracy"] = accuracy_score(y_test, y_pred)
@@ -60,5 +60,4 @@ def model_assess(df, y_pred, y_test, task, assess="Rating", tolerance=1, plot=Tr
 
 def accuracy_within_tol(y_true, y_pred, tol=1):
     return np.mean(np.abs(y_true - y_pred) <= tol)
-
 

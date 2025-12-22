@@ -335,14 +335,11 @@ def main() -> None:
         st.metric("Most frequent decade", most_common_decade)
         avg_runtime = df["Runtime"].mean()
         watch_span = df["WatchDate"].max()
-        span_label = (
-            f"{watch_span.year}"
-            if not pd.isna(watch_span)
-            else "—"
-        )
+        genre_label = df["simple_genre"].max()
+        dir_label = df["Director"].max()
         st.metric("Avg runtime", f"{avg_runtime:.0f} min")
-        st.metric("Latest watch year", span_label)
-        st.metric("Decade buckets", df["Decade"].nunique())
+        st.metric("Most watched genre", genre_label)
+        st.metric("Most watched director", dir_label)
 
     tab1, tab2, tab3 = st.tabs(["Recent watches", "Embedding map", "Model Diagnostics"])
 
